@@ -1,20 +1,19 @@
 package com.example.gmelacarne.bluetooth;
 
-import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.annotation.UiThread;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.util.UUID;
 
 /**
@@ -30,6 +29,9 @@ public class Chat extends AppCompatActivity {
     Button buttonLed;
     boolean ledStatus = false;
     SeekBar seekBar;
+    String stateString, messageString, buttonString;
+    int brightness = 0;
+
 
 
     @Override
@@ -46,30 +48,43 @@ public class Chat extends AppCompatActivity {
         // initialize the interface and the botton
         state = (TextView) findViewById(R.id.state);
         messageText= (TextView) findViewById(R.id.messageText);
+        scrollPosition = (TextView) findViewById(R.id.scrollPosition);
         buttonLed = (Button) findViewById(R.id.buttonLed);
         buttonLed.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                /*
                 if(ledStatus){
                     turnOffLed();
                 }
                 else{
                     turnOnLed();
                 }
+                */
                 ledStatus=!ledStatus;
+                sendBTMessage();
             }
         });
+
+        messageString = "Connecting...";
+        stateString = "Led Off";
+        buttonString = "Turn led On";
+
+        //update the view
+        updateLayout();
+
         buttonLed.setText("Turn led On");
         messageText.setText("Connecting...");
         state.setText("Led Off");
 
         // initialize the SeekBar
-        scrollPosition = (TextView) findViewById(R.id.scrollPosition);
-        seekBar = (SeekBar) findViewById(R.id.seekBar);
+        seekBar = (SeekBar) findViewById(R.id.setBrightiness);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                scrollPosition.setText(String.valueOf(i));
+                //scrollPosition.setText(String.valueOf(i));
+                brightness = i;
+                updateLayout();
             }
 
             @Override
@@ -96,24 +111,15 @@ public class Chat extends AppCompatActivity {
                     BluetoothAdapter.getDefaultAdapter().cancelDiscovery();
                     btSocket.connect();//start connection
 
-                    // the change in the interface cannot be done in a tread, they must be done in the activity or in a UIThread (User Interface Thread)
-                    activity.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            activity.messageText.setText("Connected");
-                        }
-                    });
+                    messageString = "Connected";
                     // maybe here we have to start the thread for the reading from the BT
                     new Thread(new ReadingBT()).start();
                 } catch (IOException e) {
-
-                    activity.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            messageText.setText("Fail to connect");
-                        }
-                    });
+                    messageString = "Fail to connect";
                 }
+
+                // update the view
+                updateLayout();
             }
         }).start(); // .start() to start the thread
 
@@ -125,13 +131,16 @@ public class Chat extends AppCompatActivity {
             try
             {
                 btSocket.getOutputStream().write("a".toString().getBytes());
-                state.setText("Led on");
+                stateString = "Led on";
+                buttonString = "Turn led On";
             }
             catch (IOException e)
             {
-                state.setText("Error on turn led on");
+                stateString = "Error on turn led on";
             }
         }
+        // update the view
+        updateLayout();
 
     }
 
@@ -141,16 +150,58 @@ public class Chat extends AppCompatActivity {
             try
             {
                 btSocket.getOutputStream().write("s".toString().getBytes());
-                state.setText("Led off");
+                stateString = "Led off";
+                buttonString = "Turn led Off";
             }
             catch (IOException e)
             {
-                state.setText("Error on turn led off");
+                stateString = "Error on turn led off";
+            }
+        }
+        // update the view
+        updateLayout();
+
+    }
+
+    private void changeBrightness() {
+        if (btSocket != null) {
+            try {
+                btSocket.getOutputStream().write(brightness);
+                state.setText("Led on");
+            } catch (IOException e) {
+                state.setText("Error on turn led on");
             }
         }
 
     }
 
+    private void updateLayout() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                buttonLed.setText(buttonString);
+                messageText.setText(messageString);
+                state.setText(stateString);
+                scrollPosition.setText(String.valueOf(brightness));
+            }
+        });
+    }
+
+    private void sendBTMessage(){
+        if (btSocket != null) {
+            try {
+                if(ledStatus) {
+                    btSocket.getOutputStream().write("a".toString().getBytes());
+                }
+                else {
+                    btSocket.getOutputStream().write("s".toString().getBytes());
+                }
+                btSocket.getOutputStream().write((byte)brightness);
+            } catch (IOException e) {
+                stateString = "Error on sending message";
+            }
+        }
+    }
 
     private class ReadingBT implements Runnable
     {
@@ -176,6 +227,8 @@ public class Chat extends AppCompatActivity {
                                 messageText.setText(readMessage);
                             }
                         });
+                        //delete the message after write it
+                        readMessage.delete(0,readMessage.length());
                     }
 
                 } catch (IOException e) {
@@ -186,6 +239,7 @@ public class Chat extends AppCompatActivity {
             }
 
         }
+
     }
 
 }

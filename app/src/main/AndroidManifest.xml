@@ -26,6 +26,11 @@
             android:label="Chat" >
         </activity>
 
+        <activity
+            android:screenOrientation="portrait"
+            android:name=".ledControl"
+            android:label="ledControl" >
+        </activity>
 
     </application>
 
